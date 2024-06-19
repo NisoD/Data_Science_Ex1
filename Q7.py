@@ -6,27 +6,26 @@ from pandas.plotting import table
 
 def tf(documents, words):
         """returns a dictionary with words keys and list of all tf per document as values"""
-        return {word: [doc.split().count(word) / len(doc.split()) for doc in documents] for word in words}
+        return {word: [doc.count(word)  for doc in documents] for word in words}
 
-def idf(num_of_docs, tf_words):
-        return {word: np.log(num_of_docs / (1 + sum(1 for tf in tf_list if tf > 0))) for word, tf_list in tf_words.items()}
-
+def idf(documents, words):
+    # make log of the positivies
+    def log_positive(x):
+        return np.log10(x) if x > 0 else 0
+    return {word: log_positive(len(documents) / sum(1 for doc in documents if word in doc)) for word in words}
     
 
 def compute_tfidf(tfs, idfs):
-    tfidf_words = {}
-    for word in tfs:
-        tfidf_word = [tf * idfs[word] for tf in tfs[word]]
-        tfidf_words[word] = tfidf_word
-    return tfidf_words
+    #wij = tfij * idfi
+    return {word: [tf * idfs[word] for tf in tfs[word]] for word in tfs.keys()}
 
 def save_dataframe_as_image(df, filename):
     fig, ax = plt.subplots(figsize=(12, 8))  # Adjust the size as needed
     ax.axis('tight')
     ax.axis('off')
     
-    # Round the DataFrame to 4 decimal places
-    df_rounded = df.round(4)
+  
+    df_rounded = df.round(6)
     
     tbl = table(ax, df_rounded, loc='center', cellLoc='center')
     tbl.auto_set_font_size(False)
@@ -39,9 +38,9 @@ def main():
     df = pd.read_csv(file)
     descriptions = df['Description'].str.lower().tolist()
     words = ['annual', 'music', 'festival', 'soul', 'jazz', 'belgium', 'hungary', 'israel', 'rock', 'dance', 'desert', 'electronic', 'arts']
-    
+    pprint.pprint(descriptions)
     tfs = tf(descriptions, words)
-    idfs = idf(len(descriptions), tfs)
+    idfs = idf(descriptions, words)
     tfidf_values = compute_tfidf(tfs, idfs)
     
     # Convert to DataFrame for better readability
@@ -53,5 +52,6 @@ def main():
     
     # Save the DataFrame as an image
     save_dataframe_as_image(tfidf_df, 'tfidf_table.png')
-    
+
 main()
+
