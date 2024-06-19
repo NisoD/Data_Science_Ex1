@@ -4,27 +4,51 @@ import pprint
 import matplotlib.pyplot as plt
 from pandas.plotting import table
 
-def tf(documents, words):
-        """returns a dictionary with words keys and list of all tf per document as values"""
-        return {word: [doc.count(word)  for doc in documents] for word in words}
+def tf(descriptions, words):
+    tf_words = {}
+    for word in words:
+        tf_word = []
+        for doc in descriptions:
+            tf_word.append(doc.count(word))
+        tf_words[word] = tf_word
+    return tf_words
 
-def idf(documents, words):
-    # make log of the positivies
-    def log_positive(x):
-        return np.log10(x) if x > 0 else 0
-    return {word: log_positive(len(documents) / sum(1 for doc in documents if word in doc)) for word in words}
+
+def in_how_many_docs_appears(description,word):
+    c=0
+    for doc in description:
+        if word in doc:
+            c+=1
+    return c
     
+def idf(num_of_docs, descriptions,words):
+    idf_words = {}
+    for word in words:
+        word_count = in_how_many_docs_appears(descriptions, word)
+        if word == 'festival':
+            print(word_count)
+        if word_count != 0:
+            idf_words[word] = np.log10(num_of_docs/word_count)
+        else:
+            idf_words[word] = 0
+    return idf_words
+
 
 def compute_tfidf(tfs, idfs):
-    #wij = tfij * idfi
-    return {word: [tf * idfs[word] for tf in tfs[word]] for word in tfs.keys()}
+    tfidf_words = {}
+    for word in idfs:
+        l = []
+        for n in tfs[word]:
+            l.append(n*idfs[word])
+        tfidf_words[word] = l
+    return tfidf_words
+
 
 def save_dataframe_as_image(df, filename):
-    fig, ax = plt.subplots(figsize=(12, 8))  # Adjust the size as needed
+    fig, ax = plt.subplots(figsize=(12, 8))  
     ax.axis('tight')
     ax.axis('off')
     
-  
     df_rounded = df.round(6)
     
     tbl = table(ax, df_rounded, loc='center', cellLoc='center')
@@ -33,14 +57,16 @@ def save_dataframe_as_image(df, filename):
     tbl.scale(1.2, 1.2)
     plt.savefig(filename, bbox_inches='tight', dpi=300)
 
+
+
 def main():
-    file = 'music_festivals.csv'
-    df = pd.read_csv(file)
+    df = pd.read_csv('music_festivals.csv')
     descriptions = df['Description'].str.lower().tolist()
-    words = ['annual', 'music', 'festival', 'soul', 'jazz', 'belgium', 'hungary', 'israel', 'rock', 'dance', 'desert', 'electronic', 'arts']
-    pprint.pprint(descriptions)
+    words = ['annual', 'music', 'festival', 'soul', 'jazz', 'belgium', 'hungary', 'israel',
+              'rock', 'dance', 'desert', 'electronic', 'arts']
+    
     tfs = tf(descriptions, words)
-    idfs = idf(descriptions, words)
+    idfs = idf(len(descriptions), descriptions,words)
     tfidf_values = compute_tfidf(tfs, idfs)
     
     # Convert to DataFrame for better readability
@@ -53,5 +79,6 @@ def main():
     # Save the DataFrame as an image
     save_dataframe_as_image(tfidf_df, 'tfidf_table.png')
 
-main()
 
+
+main()
