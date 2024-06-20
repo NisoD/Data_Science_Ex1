@@ -4,12 +4,15 @@ import os
 import requests
 from bs4 import BeautifulSoup
 import re
+from sklearn.feature_extraction.text import TfidfVectorizer
+from sklearn.metrics.pairwise import cosine_similarity
+import pprint
 
 def preprocess(text):
     """Function for cleaning Wikipedia data"""
-    text = re.sub(r'\[\d+\]', '', text)
-    text = ' '.join(text.split())
-    text = re.sub(r'[^\w\s,.()\'%-]', '', text)
+    text = re.sub(r'\[\d+\]', '', text)  # Remove reference markers like [1], [2]
+    text = ' '.join(text.split())  # Remove extra whitespace
+    text = re.sub(r'[^\w\s,.()\'%-]', '', text)  # Remove non-alphanumeric characters except punctuation
     return text
 
 def get_wikipedia_text(fruit):
@@ -56,101 +59,47 @@ def load_fruit_texts(directory):
                 fruit_texts[data["fruit"]] = data["text"]
     return fruit_texts
 
-def compute_cosine_similarity(vec1, vec2):
-    dot_product = np.dot(vec1, vec2)
-    norm1 = np.linalg.norm(vec1)
-    norm2 = np.linalg.norm(vec2)
-    if norm1 == 0 or norm2 == 0:
-        return 0.0
-    return dot_product / (norm1 * norm2)
+def build_similarity_matrix(sentences):
+    vectorizer = TfidfVectorizer()
+    tfidf_matrix = vectorizer.fit_transform(sentences)
+    sim_matrix = cosine_similarity(tfidf_matrix)
+    return sim_matrix
 
-def build_similarity_matrix(tfidf_matrix):
-    n = tfidf_matrix.shape[0]
-    similarity_matrix = np.zeros((n, n))
-    for i in range(n):
-        for j in range(i+1, n):
-            similarity = compute_cosine_similarity(tfidf_matrix[i], tfidf_matrix[j])
-            similarity_matrix[i][j] = similarity
-            similarity_matrix[j][i] = similarity
-    return similarity_matrix
+def calculate_page_rank(sim_matrix, d=0.85, eps=1.0e-8, max_iter=100):
+    n = sim_matrix.shape[0]
+    matrix = d * sim_matrix + (1 - d) / n * np.ones([n, n])
+    ranks = np.ones(n) / n
 
-def pagerank(A, eps=0.0001, d=0.85):
-    P = np.ones(A.shape[0]) / A.shape[0]
-    while True:
-        new_P = np.ones(A.shape[0]) * (1 - d) / A.shape[0] + d * A.T.dot(P)
-        delta = np.abs(new_P - P).sum()
-        if delta <= eps:
-            return new_P
-        P = new_P
+    for _ in range(max_iter):
+        new_ranks = matrix @ ranks
+        new_ranks /= np.linalg.norm(new_ranks, 1)  # Normalize to prevent overflow
+        if np.linalg.norm(ranks - new_ranks, 1) < eps:
+            break
+        ranks = new_ranks
+    return ranks
 
-def pagerank_summarization(text, num_sentences=5, threshold=0.1):
+def summarize_text(text, num_sentences=5):
     sentences = text.split('. ')
-    tf_descriptions = sentences
-    words = list(set(" ".join(sentences).split()))
+    if len(sentences) > 100:  # Limit to a reasonable number of sentences
+        sentences = sentences[:100]
     
-    tfs = tf(tf_descriptions, words)
-    idfs = idf(len(tf_descriptions), tf_descriptions, words)
-    tfidf_values = compute_tfidf(tfs, idfs)
-    
-    tfidf_matrix = np.array([list(tfidf_values[word]) for word in words]).T
-    
-    similarity_matrix = build_similarity_matrix(tfidf_matrix)
-    
-    # Apply threshold to sparsify the graph
-    similarity_matrix[similarity_matrix < threshold] = 0
-    
-    scores = pagerank(similarity_matrix)
-    
-    ranked_sentences = sorted(((scores[i], s) for i, s in enumerate(sentences)), reverse=True)
-    summary = " ".join([s for _, s in ranked_sentences[:num_sentences]])
+    sim_matrix = build_similarity_matrix(sentences)
+    ranks = calculate_page_rank(sim_matrix)
+    ranked_sentences = [sentences[i] for i in np.argsort(ranks)[::-1]]
+    summary = '. '.join(ranked_sentences[:num_sentences])
+    summary = re.sub(r'\s*\.\s*', '. ', summary)  # Ensure proper spacing around periods
+    summary = summary.replace('..', '.')
     return summary
 
-def tf(descriptions, words):
-    tf_words = {}
-    for word in words:
-        tf_word = []
-        for doc in descriptions:
-            tf_word.append(doc.count(word))
-        tf_words[word] = tf_word
-    return tf_words
-
-def in_how_many_docs_appears(description, word):
-    c = 0
-    for doc in description:
-        if word in doc:
-            c += 1
-    return c
-
-def idf(num_of_docs, descriptions, words):
-    idf_words = {}
-    for word in words:
-        word_count = in_how_many_docs_appears(descriptions, word)
-        if word_count != 0:
-            idf_words[word] = np.log10(num_of_docs / word_count)
-        else:
-            idf_words[word] = 0
-    return idf_words
-
-def compute_tfidf(tfs, idfs):
-    tfidf_words = {}
-    for word in idfs:
-        l = []
-        for n in tfs[word]:
-            l.append(n * idfs[word])
-        tfidf_words[word] = l
-    return tfidf_words
-
-def textsum():
-    fruit_texts = load_fruit_texts('fruit_texts')
-    
+def summarize_text_per_fruit(fruit_texts):
     summaries = {}
     for fruit, text in fruit_texts.items():
-        summary = pagerank_summarization(text)
+        summary = summarize_text(text)
         summaries[fruit] = summary
-        print(f"Summary for {fruit}:\n{summary}\n")
-    
+    pprint.pprint(summaries)
     return summaries
 
 if __name__ == "__main__":
-    fruitcrawl()
-    textsum()
+    # fruitcrawl()  # Uncomment if you need to crawl the data again
+    fruit_texts = load_fruit_texts('fruit_texts')
+    summarize_text_per_fruit(fruit_texts)

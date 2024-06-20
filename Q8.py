@@ -1,48 +1,25 @@
 import numpy as np
-import networkx as nx
 import json
 import os
-import pandas as pd
-import matplotlib.pyplot as plt
-from pandas.plotting import table
 import requests
 from bs4 import BeautifulSoup
 import re
+from sklearn.feature_extraction.text import TfidfVectorizer
+from sklearn.metrics.pairwise import cosine_similarity
+from nltk.tokenize import sent_tokenize
+import pprint
 
-def tf(descriptions, words):
-    tf_words = {}
-    for word in words:
-        tf_word = []
-        for doc in descriptions:
-            tf_word.append(doc.count(word))
-        tf_words[word] = tf_word
-    return tf_words
-
-def in_how_many_docs_appears(description, word):
-    c = 0
-    for doc in description:
-        if word in doc:
-            c += 1
-    return c
-
-def idf(num_of_docs, descriptions, words):
-    idf_words = {}
-    for word in words:
-        word_count = in_how_many_docs_appears(descriptions, word)
-        if word_count != 0:
-            idf_words[word] = np.log10(num_of_docs / word_count)
-        else:
-            idf_words[word] = 0
-    return idf_words
-
-def compute_tfidf(tfs, idfs):
-    tfidf_words = {}
-    for word in idfs:
-        l = []
-        for n in tfs[word]:
-            l.append(n * idfs[word])
-        tfidf_words[word] = l
-    return tfidf_words
+def preprocess(text, fruit=None):
+    """Function for cleaning Wikipedia data"""
+    text = re.sub(r'\[\d+\]', '', text)  # Remove reference markers like [1], [2]
+    text = ' '.join(text.split())  # Remove extra whitespace
+    text = re.sub(r'[^\w\s,.()\'%-]', '', text)  # Remove non-alphanumeric characters except punctuation
+    
+    # Remove specific terms for watermelon
+    if fruit == "Watermelon":
+        text = re.sub(r'lanatus var\.*', '', text)
+    
+    return text
 
 def get_wikipedia_text(fruit):
     url = f"https://en.wikipedia.org/wiki/{fruit}"
@@ -56,14 +33,8 @@ def get_wikipedia_text(fruit):
     fruit_text = ""
     for para in paragraphs:
         fruit_text += para.text
-    return fruit_text.strip()
 
-def preprocess(text):
-    """Function for cleaning Wikipedia data"""
-    text = re.sub(r'\[\d+\]', '', text)
-    text = ' '.join(text.split())
-    text = re.sub(r'[^\w\s,()\'%-]', '', text)
-    return text
+    return fruit_text.strip()
 
 def fruitcrawl():
     fruits = [
@@ -79,7 +50,7 @@ def fruitcrawl():
         print(f"Crawling wiki page for {fruit}...")
         text = get_wikipedia_text(fruit)
         if text:
-            text = preprocess(text)
+            text = preprocess(text, fruit)  # Pass the fruit name for specific preprocessing
             with open(f'fruit_texts/{fruit}.json', 'w', encoding='utf-8') as f:
                 json.dump({"fruit": fruit, "text": text}, f, ensure_ascii=False, indent=4)
         else:
@@ -94,42 +65,58 @@ def load_fruit_texts(directory):
                 fruit_texts[data["fruit"]] = data["text"]
     return fruit_texts
 
-def build_similarity_matrix(tfidf_matrix):
-    cosine_similarities = cosine_similarity(tfidf_matrix)
-    np.fill_diagonal(cosine_similarities, 0)
-    return cosine_similarities
+def build_similarity_matrix(sentences):
+    vectorizer = TfidfVectorizer()
+    tfidf_matrix = vectorizer.fit_transform(sentences)
+    sim_matrix = cosine_similarity(tfidf_matrix)
+    return sim_matrix
 
-def pagerank_summarization(text, num_sentences=5):
-    sentences = text.split('. ')
-    tf_descriptions = sentences
-    words = list(set(" ".join(sentences).split()))
-    
-    tfs = tf(tf_descriptions, words)
-    idfs = idf(len(tf_descriptions), tf_descriptions, words)
-    tfidf_values = compute_tfidf(tfs, idfs)
-    
-    tfidf_matrix = pd.DataFrame(tfidf_values).values
-    
-    similarity_matrix = build_similarity_matrix(tfidf_matrix)
-    
-    nx_graph = nx.from_numpy_array(similarity_matrix)
-    scores = nx.pagerank(nx_graph)
+def calculate_page_rank(sim_matrix, d=0.85, eps=1.0e-8, max_iter=100):
+    n = sim_matrix.shape[0]
+    matrix = d * sim_matrix + (1 - d) / n * np.ones([n, n])
+    ranks = np.ones(n) / n
 
-    ranked_sentences = sorted(((scores[i], s) for i, s in enumerate(sentences)), reverse=True)
-    summary = " ".join([s for _, s in ranked_sentences[:num_sentences]])
+    for _ in range(max_iter):
+        new_ranks = matrix @ ranks
+        new_ranks /= np.linalg.norm(new_ranks, 1)  # Normalize to prevent overflow
+        if np.linalg.norm(ranks - new_ranks, 1) < eps:
+            break
+        ranks = new_ranks
+    return ranks
+
+def summarize_text(text, num_sentences=5):
+    sentences = sent_tokenize(text)  # Use nltk's sent_tokenize for better sentence segmentation
+    if len(sentences) > 100:  # Limit to a reasonable number of sentences
+        sentences = sentences[:100]
+    
+    sim_matrix = build_similarity_matrix(sentences)
+    ranks = calculate_page_rank(sim_matrix)
+    ranked_sentences = [sentences[i] for i in np.argsort(ranks)[::-1]]
+    
+    # Ensure we only return complete sentences and handle redundant periods
+    summary = '. '.join(ranked_sentences[:num_sentences])
+    summary = re.sub(r'\s*\.\s*', '. ', summary)  # Ensure proper spacing around periods
+    summary = summary.replace('..', '.')
     return summary
+
+def summarize_text_per_fruit(fruit_texts):
+    summaries = {}
+    if not os.path.exists('fruit_summaries'):
+        os.makedirs('fruit_summaries')
+    
+    for fruit, text in fruit_texts.items():
+        summary = summarize_text(text)
+        summaries[fruit] = summary
+        with open(f'fruit_summaries/{fruit}_summary.json', 'w', encoding='utf-8') as f:
+            json.dump({"fruit": fruit, "summary": summary}, f, ensure_ascii=False, indent=4)
+    
+    pprint.pprint(summaries, width=120)  # Use pprint to print the summaries with a specified width
+    return summaries
 
 def textsum():
     fruit_texts = load_fruit_texts('fruit_texts')
-    
-    summaries = {}
-    for fruit, text in fruit_texts.items():
-        summary = pagerank_summarization(text)
-        summaries[fruit] = summary
-        print(f"Summary for {fruit}:\n{summary}\n")
-    
-    return summaries
+    summarize_text_per_fruit(fruit_texts)
 
 if __name__ == "__main__":
-    fruitcrawl()
+    # fruitcrawl()  # Uncomment if you need to crawl the data again
     textsum()
