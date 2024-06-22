@@ -82,29 +82,6 @@ def retrive_data(q:str):
         return fruit_sum
 
 
-# def calculate_td(doc:str) ->dict:
-#     td = Counter(doc.split())
-#     return {word: count for word, count in td.items()}
-
-
-# def calculate_idf(documents:list) -> dict:
-#     idf = {}
-#     num_of_docs = len(documents)
-#     all_terms = set(word for doc in documents for word in doc.split())
-#     for term in all_terms:
-#         doc_count_with_term = sum(1 for doc in documents if term in doc.split())
-#         if doc_count_with_term == 0:
-#             idf[term] = 0
-#         else:
-#             idf[term] = np.log10(num_of_docs / doc_count_with_term)
-#     return idf
-
-
-# def td_idf(doc:str, idf):
-    # td:dict = calculate_td(doc)
-    # return {term: td_val * idf.get(term, 0) for term, td_val in td.items()}
-
-
 def build_similarity_matrix(sentences):
     tfidf_vectorizer = TfidfVectorizer(stop_words='english')
     tfidf_matrix = tfidf_vectorizer.fit_transform(sentences)
@@ -114,7 +91,7 @@ def build_similarity_matrix(sentences):
     return sim_matrix
 
 
-def calculate_page_rank(sim_matrix, beta=0.85, eps=1.0e-8, iterations=10000):
+def calculate_page_rank(sim_matrix, beta=0.85, eps=1.0e-8, iterations=100000):
     sim_matrix = np.array(sim_matrix)
     n = sim_matrix.shape[0]
     ranks = np.ones(n) / n
@@ -168,7 +145,7 @@ def q8_c():
 
 
 
-def calculate_e_distance(centeroid:list , data_point):
+def calculate_euclidean_distance(centeroid:list , data_point):
     #Euclidean distance
     return np.linalg.norm(np.array(data_point) - np.array(centeroid))
 
@@ -182,7 +159,7 @@ def calculate_kmeans(feature_vectors:list, k:int, iteration:int ):
     for i in range(iteration):
 
         for n in range(num_of_data_points):
-            distances = [calculate_e_distance(centroid, feature_vectors[n]) for centroid in centroids]
+            distances = [calculate_euclidean_distance(centroid, feature_vectors[n]) for centroid in centroids]
             data_point_groups[n] = np.argmin(distances)
         
         if i != iteration - 1:
@@ -202,7 +179,7 @@ def kmeans():
     for _ , row in DataFrame.iterrows():
         feature_vectors.append(np.array([row[a], row[b], row[c]]))
 
-    data_point_groups,centroids  = calculate_kmeans(feature_vectors,4,40)
+    data_point_groups,centroids  = calculate_kmeans(feature_vectors,4,50)
 
     x_point = [v[0] for v in feature_vectors]
     y_point = [v[2] for v in feature_vectors]
@@ -232,7 +209,7 @@ def q8_e():
         feature_vectors.append(np.array([Peeling_Messiness[row[a]], colors.index(row[b])/len(colors), seasons[row[c]]]))
 
     
-    data_point_groups, _ = calculate_kmeans(feature_vectors,4,40)
+    data_point_groups, _ = calculate_kmeans(feature_vectors,4,50)
     x_point = DataFrame["Amount of Sugar"].tolist()
     y_point = DataFrame["Price"].tolist()
 
@@ -255,27 +232,3 @@ if __name__ == "__main__":
     # q8_e()
 
 
-# def build_similarity_matrix(sentences:list):
-#     idf:dict = calculate_idf(sentences)
-#     sim_matrix = []
-#     tfidf_all_s = [td_idf(s, idf) for s in sentences]
-
-#     for i in range(len(sentences)):
-#         row = []
-#         for j in range(len(sentences)):
-#             if i == j:
-#                 row.append(1.0)  
-#                 continue
-#             doc1_tfidf = tfidf_all_s[i]
-#             doc2_tfidf = tfidf_all_s[j]
-#             dot_product = sum(tfidf1 * tfidf2 for tfidf1, tfidf2 in zip(doc1_tfidf.values(), doc2_tfidf.values()))
-#             magnitude1 = np.linalg.norm(list(doc1_tfidf.values()))
-#             magnitude2 = np.linalg.norm(list(doc2_tfidf.values()))
-#             if magnitude1 == 0 or magnitude2 == 0:
-#                 row.append(0.0)  
-#             else:
-#                 cosine_similarity = dot_product / (magnitude1 * magnitude2)
-#                 row.append(cosine_similarity)
-#         sim_matrix.append(row)
-
-#     return sim_matrix
