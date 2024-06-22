@@ -4,29 +4,28 @@ import pprint
 import matplotlib.pyplot as plt
 from pandas.plotting import table
 
-def tf(descriptions, words):
-    tf_words = {}
+
+def td(descriptions, words:list):
+    td_words = {}
     for word in words:
-        tf_word = []
+        td_word = []
         for doc in descriptions:
-            tf_word.append(doc.count(word))
-        tf_words[word] = tf_word
-    return tf_words
+            td_word.append(doc.count(word))
+        td_words[word] = td_word
+    return td_words
 
 
-def in_how_many_docs_appears(description,word):
+def in_how_many_docs_appears(description, word:str):
     c=0
     for doc in description:
         if word in doc:
             c+=1
     return c
     
-def idf(num_of_docs, descriptions,words):
+def idf(num_of_docs:int, descriptions ,words:list):
     idf_words = {}
     for word in words:
         word_count = in_how_many_docs_appears(descriptions, word)
-        if word == 'festival':
-            print(word_count)
         if word_count != 0:
             idf_words[word] = np.log10(num_of_docs/word_count)
         else:
@@ -34,14 +33,22 @@ def idf(num_of_docs, descriptions,words):
     return idf_words
 
 
-def compute_tfidf(tfs, idfs):
+def compute_tdidf(tds, idfs):
     tfidf_words = {}
     for word in idfs:
         l = []
-        for n in tfs[word]:
+        for n in tds[word]:
             l.append(n*idfs[word])
         tfidf_words[word] = l
     return tfidf_words
+
+
+def tdidf(descriptions,words):
+    tds = td(descriptions, words)
+    idfs = idf(len(descriptions), descriptions,words)
+    tfidf_values = compute_tdidf(tds, idfs)
+    return tfidf_values
+
 
 
 def save_dataframe_as_image(df, filename):
@@ -58,27 +65,19 @@ def save_dataframe_as_image(df, filename):
     plt.savefig(filename, bbox_inches='tight', dpi=300)
 
 
-
-def main():
+def q7():
     df = pd.read_csv('music_festivals.csv')
     descriptions = df['Description'].str.lower().tolist()
     words = ['annual', 'music', 'festival', 'soul', 'jazz', 'belgium', 'hungary', 'israel',
               'rock', 'dance', 'desert', 'electronic', 'arts']
-    
-    tfs = tf(descriptions, words)
-    idfs = idf(len(descriptions), descriptions,words)
-    tfidf_values = compute_tfidf(tfs, idfs)
-    
-    # Convert to DataFrame for better readability
-    tfidf_df = pd.DataFrame(tfidf_values)
+    values = tdidf(descriptions,words)
+
+    tfidf_df = pd.DataFrame(values)
     tfidf_df['Music Festival'] = df['Music Festival']
     tfidf_df.set_index('Music Festival', inplace=True)
-    
-    pprint.pprint(tfidf_df)
-    
-    # Save the DataFrame as an image
+        
     save_dataframe_as_image(tfidf_df, 'tfidf_table.png')
 
 
-
-main()
+if __name__ == "__main__":
+    q7()
