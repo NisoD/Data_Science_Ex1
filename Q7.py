@@ -5,7 +5,7 @@ import matplotlib.pyplot as plt
 from pandas.plotting import table
 
 
-def td(descriptions, words:list):
+def td(descriptions, words:list)-> dict:
     td_words = {}
     for word in words:
         td_word = []
@@ -22,7 +22,7 @@ def in_how_many_docs_appears(description, word:str):
             c+=1
     return c
     
-def idf(num_of_docs:int, descriptions ,words:list):
+def idf(num_of_docs:int, descriptions ,words:list)-> dict:
     idf_words = {}
     for word in words:
         word_count = in_how_many_docs_appears(descriptions, word)
@@ -33,7 +33,7 @@ def idf(num_of_docs:int, descriptions ,words:list):
     return idf_words
 
 
-def compute_tdidf(tds, idfs):
+def compute_tdidf(tds, idfs) -> dict:
     tfidf_words = {}
     for word in idfs:
         l = []
@@ -43,7 +43,7 @@ def compute_tdidf(tds, idfs):
     return tfidf_words
 
 
-def tdidf(descriptions,words):
+def tdidf(descriptions,words) -> dict:
     tds = td(descriptions, words)
     idfs = idf(len(descriptions), descriptions,words)
     tfidf_values = compute_tdidf(tds, idfs)
@@ -71,7 +71,6 @@ def q7():
     words = ['annual', 'music', 'festival', 'soul', 'jazz', 'belgium', 'hungary', 'israel',
               'rock', 'dance', 'desert', 'electronic', 'arts']
     values = tdidf(descriptions,words)
-
     tfidf_df = pd.DataFrame(values)
     tfidf_df['Music Festival'] = df['Music Festival']
     tfidf_df.set_index('Music Festival', inplace=True)
