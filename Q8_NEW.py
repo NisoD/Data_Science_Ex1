@@ -6,16 +6,13 @@ from bs4 import BeautifulSoup
 import re
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.metrics.pairwise import cosine_similarity
-from nltk.tokenize import sent_tokenize
 import pprint
 import pandas as pd
 from plotly.subplots import make_subplots
 import plotly.graph_objects as go
-from collections import Counter
 from Q7 import tdidf
 import nltk
 from nltk.corpus import stopwords
-import plotly.io as pio
 
 
 def get_wikipedia_text(fruit):
@@ -360,9 +357,9 @@ if __name__ == "__main__":
         "Pineapple", "Lemon", "Lime_(fruit)", "Raspberry", "Blackberry"]
     global DataFrame
     DataFrame = pd.read_csv('fruits.csv')
-    # fruitcrawl() # q_a
-    # textsum() #q_b
-    # nltk.download('stopwords')
+    fruitcrawl() # q_a
+    textsum() #q_b
+    nltk.download('stopwords')
     top_n_words_tdidf = q8_c()
     kmeans() #q_d
     q8_e()
