@@ -5,11 +5,9 @@ import pprint
 import random
 
 
-def calculate_page_rank(G, beta=0.85, max_iter=1000, eps=1.0e-8):
-    n = G.number_of_nodes()
-    adjacencyMatrix = nx.to_numpy_array(G, dtype=float)
-    row_sums = adjacencyMatrix.sum(axis=1)
+def calculate_page_rank(adjacencyMatrix,n, beta=0.85, max_iter=1000, eps=1.0e-8):
 
+    row_sums = adjacencyMatrix.sum(axis=1)
     for i in range(len(row_sums)):
         if row_sums[i] != 0:
             adjacencyMatrix[i] /= row_sums[i]
@@ -23,17 +21,17 @@ def calculate_page_rank(G, beta=0.85, max_iter=1000, eps=1.0e-8):
         new_ranks += beta * sum(ranks[np.where(row_sums == 0)]) / n
 
         if np.linalg.norm(new_ranks - ranks, 1) < eps:
-            return dict(zip(G.nodes(), new_ranks))
+            return  new_ranks
         ranks = new_ranks
     return ranks
 
 
 def calc_histogram(G, num_bins):
     # Sub-Section (2) the calculation are the same for both section a and b
-    pagerank_list = calculate_page_rank(G).values()
-    # pagerank_list = list(nx.pagerank(G).values())
-    pprint.pprint(pagerank_list)
-    # pprint.pprint(pagerank_list2)
+    n = G.number_of_nodes()
+    adjacencyMatrix = nx.to_numpy_array(G, dtype=float)
+    pagerank_list = calculate_page_rank(adjacencyMatrix,n)
+
     bin_edges = np.linspace(
         min(pagerank_list), max(pagerank_list), num_bins + 1)
     plt.hist(pagerank_list, bins=bin_edges,
