@@ -1,11 +1,11 @@
 import matplotlib.pyplot as plt
 import networkx as nx
 import numpy as np
-import pprint
-import random
+import community as community_louvain
 
 
-def calculate_page_rank(adjacencyMatrix,n, beta=0.85, max_iter=1000, eps=1.0e-8):
+
+def calculate_page_rank(adjacencyMatrix, n, beta=0.85, max_iter=1000, eps=1.0e-8):
 
     row_sums = adjacencyMatrix.sum(axis=1)
     for i in range(len(row_sums)):
@@ -21,7 +21,7 @@ def calculate_page_rank(adjacencyMatrix,n, beta=0.85, max_iter=1000, eps=1.0e-8)
         new_ranks += beta * sum(ranks[np.where(row_sums == 0)]) / n
 
         if np.linalg.norm(new_ranks - ranks, 1) < eps:
-            return  new_ranks
+            return new_ranks
         ranks = new_ranks
     return ranks
 
@@ -30,7 +30,7 @@ def calc_histogram(G, num_bins):
     # Sub-Section (2) the calculation are the same for both section a and b
     n = G.number_of_nodes()
     adjacencyMatrix = nx.to_numpy_array(G, dtype=float)
-    pagerank_list = calculate_page_rank(adjacencyMatrix,n)
+    pagerank_list = calculate_page_rank(adjacencyMatrix, n)
 
     bin_edges = np.linspace(
         min(pagerank_list), max(pagerank_list), num_bins + 1)
@@ -44,77 +44,94 @@ def calc_histogram(G, num_bins):
 
 def Q_a():
     G = nx.Graph()
-
     # The Graph- Sub-Section a,1
-
     nodes = [1, 2, 3, 4, 5, 6, 7, 8, 9]
     edges = [(1, 2), (2, 3), (1, 3), (3, 6), (6, 7),
              (1, 4), (4, 5), (2, 8), (8, 9)]
-
     # Sub-Section a,3
     """ Explanation: 
     We chose the edges such that for all  k the groups v_k={v:deg(v)=k} |v_k| is the same.
     The reason is that in such way the pagerank values will be the same for all vertices in the same group.
     """
-
     G.add_nodes_from(nodes)
     G.add_edges_from(edges)
-
-    # Vialuzation if needed :
-    # plt.figure(figsize=(8, 6))
-    # nx.draw(G, with_labels=True, node_color='lightblue',
-    #         edge_color='gray', node_size=500, font_size=16)
-    # plt.title("Custom Graph")
-    # plt.show()
 
     calc_histogram(G, 3)
     # Sub-Sectopm a,4
     """an example of a dataset is that achevies uniform pagerank is dataset representing a
       social network of employees in a company where each department is structured
      such that all members have exactly the same number of connections within and outside their department. """
+    return G
 
 
-# def random_subset(seq, m, seed=42):
-#     targets = set()
-#     rng = random.Random(seed)
-#     while len(targets) < m:
-#         x = rng.choice(seq)
-#         targets.add(x)
-#     return targets
-
-
-def Q_b():
-    n = 200
-    m = 8
-    G = nx.Graph()
-    nodes = list(range(m))
+def Q_b(num_nodes, decrease_factor):
+    
+    nodes = [i for i in range(1,num_nodes)] 
+    G  = nx.DiGraph()
     G.add_nodes_from(nodes)
 
-    for i in range(m):
-        for j in range(i + 1, m):
-            if i != j:
-                G.add_edge(i, j)
+    for i in range(1,num_nodes):
+        for j in range(1,int(i/decrease_factor)):
+            G.add_edge(j,i)
     
-    for i in range(n):
-        new_node = m + i
-        G.add_node(new_node)
-        targets = np.random.choice(list(G.nodes()), m, replace=True)
-        for target in targets:
-            G.add_edge(new_node, target)
+    calc_histogram(G,30)
+    return G
 
+def aggregate_graph(G, partition):
+    # This function was made by using the help of chatgpt 4o made 
+    agg_graph = nx.Graph()
+    communities = set(partition.values())
+    community_pageranks = {}
 
+    for community in communities:
+        members = [node for node in partition.keys() if partition[node] == community]
+        subgraph = G.subgraph(members)
+        adjacencyMatrix = nx.to_numpy_array(subgraph, dtype=float)
+        pagerank = calculate_page_rank(adjacencyMatrix, len(members))
+        community_pageranks[community] = sum(pagerank) / len(pagerank)
+        agg_graph.add_node(community, size=len(members), label=len(members))
 
-    plt.figure(figsize=(12, 8))
-    nx.draw(G, with_labels=True, node_color='lightblue')
-    plt.title("Randomly Generated Graph with Preferential Attachment")
+    for node1, node2 in G.edges():
+        comm1 = partition[node1]
+        comm2 = partition[node2]
+        if comm1 != comm2:
+            weight = (community_pageranks[comm1] + community_pageranks[comm2]) / 2
+            if agg_graph.has_edge(comm1, comm2):
+                agg_graph[comm1][comm2]['weight'] += weight
+            else:
+                agg_graph.add_edge(comm1, comm2, weight=weight)
+
+    sizes = [agg_graph.nodes[node]['size'] * 100 for node in agg_graph.nodes]
+    pos = nx.circular_layout(agg_graph)
+    edges = agg_graph.edges(data=True)
+    weights = [edge[2]['weight'] for edge in edges]
+
+    # Assign colors to communities
+    community_colors = {community: plt.cm.tab20(i / len(communities)) for i, community in enumerate(communities)}
+    node_colors = [community_colors[node] for node in agg_graph.nodes]
+
+    labels = {node: agg_graph.nodes[node]['label'] for node in agg_graph.nodes}
+
+    nx.draw(agg_graph, pos, labels=labels, node_size=sizes, font_size=10, node_color=node_colors, edge_color='gray')
+    edge_labels = {(u, v): f'{d["weight"]:.2f}' for u, v, d in agg_graph.edges(data=True)}
+    nx.draw_networkx_edge_labels(agg_graph, pos, edge_labels=edge_labels, font_color='red')
+    plt.title('Aggregated Graph with PageRank Scores and Community Colors')
     plt.show()
 
-    calc_histogram(G, 10)
+
+def Q_c(G_a,G_b):
+    partition_a = community_louvain.best_partition(G_a,resolution=1.3)
+    partition_b = community_louvain.best_partition(G_b,resolution=1.02)
+
+    aggregate_graph(G_a, partition_a)
+    aggregate_graph(G_b, partition_b)
+
 
 def main():
-    Q_a()
-    Q_b()
+    G_a = Q_a()
+    G_b = Q_b(100, 1.1).to_undirected()
+    Q_c(G_a,G_b)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()
