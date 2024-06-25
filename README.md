@@ -1,1 +1,1 @@
-Data Science Course, Amit Josef , Daniel Nisnevich 
+Data Science Course, Amit Joseph , Daniel Nisnevich 
